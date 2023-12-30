@@ -14,6 +14,43 @@ module sui_gives::lock_coin {
     use std::hash::{sha3_256};
     
     const WRONG_KEY_OR_NOT_AUTHORIZED: u64 = 0;
+
+    struct LockedCoinCreated has copy, drop {
+        LockedCoin_id: ID,
+        coin_type: ASCIIString,
+        creator: address,
+        key_hash: vector<u8>,
+        balance: u64,
+    }
+    struct LockedCoinUnlocked has copy, drop {
+        LockedCoin_id: ID,
+        coin_type: ASCIIString,
+        creator: address,
+        recipient: address,
+        key: vector<u8>,
+        balance: u64,
+    }
+    public fun emit_locked_coin_created<T>(lockedCoin: &LockedCoin<T>) {
+        let event = LockedCoinCreated {
+            LockedCoin_id: *object::borrow_id(lockedCoin),
+            coin_type: type_name::into_string(type_name::get<T>()),
+            creator: lockedCoin.creator,
+            key_hash: lockedCoin.key_hash,
+            balance: balance::value(&lockedCoin.balance),
+        };
+        event::emit(event);
+    }
+    public fun emit_locked_coin_unlocked<T>(lockedCoin: &LockedCoin<T>, recipient: address, key: vector<u8>) {
+        let event = LockedCoinUnlocked {
+            LockedCoin_id: *object::borrow_id(lockedCoin),
+            coin_type: type_name::into_string(type_name::get<T>()),
+            creator: lockedCoin.creator,
+            recipient: recipient,
+            key: key,
+            balance: balance::value(&lockedCoin.balance),
+        };
+        event::emit(event);
+    }
     
     struct LockedCoin <phantom T> has key, store {
         id: UID,
@@ -35,6 +72,7 @@ module sui_gives::lock_coin {
             key_hash: key_hash,
             balance: coin::into_balance<T>(coin),
         };
+        emit_locked_coin_created(&lockedCoin);
         transfer::public_share_object(lockedCoin);
     }
     public entry fun unlock_coin<T>(
@@ -48,9 +86,10 @@ module sui_gives::lock_coin {
             &lockedCoin.creator == &tx_context::sender(ctx), 
             WRONG_KEY_OR_NOT_AUTHORIZED
         );
-        
+
         let value = balance::value(&lockedCoin.balance);
         let recipient = tx_context::sender(ctx);
+        emit_locked_coin_unlocked(lockedCoin, recipient, key);
         transfer::public_transfer(
             coin::take(
               &mut lockedCoin.balance, 

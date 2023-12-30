@@ -15,6 +15,49 @@ module sui_gives::lock_nft {
     use sui::object_table::{Self, ObjectTable};
     
     const WRONG_KEY_OR_NOT_AUTHORIZED: u64 = 0;
+
+    struct LockedNFTCreated has copy, drop {
+        id: ID,
+        creator: address,
+        nft_type: ASCIIString,
+        nft_id: ID,
+        key_hash: vector<u8>,
+    }
+    struct LockedNFTUnlocked has copy, drop {
+        id: ID,
+        creator: address,
+        nft_type: ASCIIString,
+        nft_id: ID,
+        recipient: address,
+        key: vector<u8>,
+    }
+    public fun emit_locked_nft_created<T: store + key>(
+        lockedNFT: &LockedNFT<T>
+    ) {
+        let event = LockedNFTCreated {
+            id: *object::borrow_id(lockedNFT),
+            creator: lockedNFT.creator,
+            nft_type: type_name::into_string(type_name::get<T>()),
+            nft_id: lockedNFT.nft_table_key,
+            key_hash: lockedNFT.key_hash,
+        };
+        event::emit(event);
+    }
+    public fun emit_locked_nft_unlocked<T: store + key>(
+        lockedNFT: &LockedNFT<T>,
+        recipient: address,
+        key: vector<u8>
+    ) {
+        let event = LockedNFTUnlocked {
+            id: *object::borrow_id(lockedNFT),
+            creator: lockedNFT.creator,
+            nft_type: type_name::into_string(type_name::get<T>()),
+            nft_id: lockedNFT.nft_table_key,
+            recipient: recipient,
+            key: key,
+        };
+        event::emit(event);
+    }
     
     struct LockedNFT <phantom T: store + key> has key, store {
         id: UID,
@@ -42,6 +85,7 @@ module sui_gives::lock_nft {
             nft_object_table,
             nft_table_key,
         };
+        emit_locked_nft_created(&lockedNFT);
         transfer::public_share_object(lockedNFT);
     }
 
@@ -59,6 +103,7 @@ module sui_gives::lock_nft {
         
         let nft = object_table::remove(&mut lockedNFT.nft_object_table, lockedNFT.nft_table_key);
         let recipient = tx_context::sender(ctx);
+        emit_locked_nft_unlocked(lockedNFT, recipient, key);
         transfer::public_transfer(nft, recipient);
     }
 }
