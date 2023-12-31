@@ -98,4 +98,54 @@ module sui_gives::lock_coin {
         );
         object::delete(id);
     }
+    #[test]
+    fun test_lock_by_sender_then_unlock_by_receiver() {
+        use sui_gives::test_coin::{Self, TEST_COIN};
+        use sui::test_scenario;
+        use sui::balance;
+        use std::debug;
+        // create test addresses representing users
+        let sender = @0xad;
+        let receiver = @0xac;
+        
+        // first transaction to emulate module initialization
+        let scenario_val = test_scenario::begin(sender);
+        let scenario = &mut scenario_val;
+
+        let key = x"8714127bd7b54f7cd362ea56141fcf741c9937fb399feec150014511d68b715f";
+        let value = 10000;
+        {
+            lock_manager::create_locker_manager(test_scenario::ctx(scenario));
+            init(test_scenario::ctx(scenario));
+            // test_coin::init(test_utils::create_one_time_witness<TEST>(), test_scenario::ctx(scenario))
+        };
+
+        test_scenario::next_tx(scenario, sender);
+        
+        {
+            let lockerManager = test_scenario::take_shared<LockerManager>(scenario);
+            let coin = coin::from_balance(balance::create_for_testing<TEST_COIN>(value), test_scenario::ctx(scenario));
+            let key_hash = sha3_256(key);
+            lock_coin( &mut lockerManager, coin, key_hash, test_scenario::ctx(scenario));
+            test_scenario::return_shared(lockerManager);
+        };
+
+        test_scenario::next_tx(scenario, receiver);
+
+        {
+            let lockerManager = test_scenario::take_shared<LockerManager>(scenario);
+            unlock_coin<TEST_COIN>(&mut lockerManager, key, receiver, test_scenario::ctx(scenario));
+            test_scenario::return_shared(lockerManager);
+        };
+
+        test_scenario::next_tx(scenario, receiver);
+
+        {
+            let coin1 = test_scenario::take_from_address<Coin<TEST_COIN>>(scenario, receiver);
+            assert!(balance::value(coin::balance(&coin1)) == value, 0);
+            test_scenario::return_to_address(receiver, coin1);
+        };
+        
+        test_scenario::end(scenario_val);
+    }
 }
