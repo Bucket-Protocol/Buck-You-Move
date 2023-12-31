@@ -30,7 +30,7 @@ module sui_gives::lock_coin {
         key: vector<u8>,
         balance: u64,
     }
-    public fun emit_locked_coin_created<T>(lockedCoin: &LockedCoin<T>) {
+    fun emit_locked_coin_created<T>(lockedCoin: &LockedCoin<T>) {
         let event = LockedCoinCreated {
             LockedCoin_id: *object::borrow_id(lockedCoin),
             coin_type: type_name::into_string(type_name::get<T>()),
@@ -40,7 +40,7 @@ module sui_gives::lock_coin {
         };
         event::emit(event);
     }
-    public fun emit_locked_coin_unlocked<T>(lockedCoin: &LockedCoin<T>, recipient: address, key: vector<u8>) {
+    fun emit_locked_coin_unlocked<T>(lockedCoin: &LockedCoin<T>, recipient: address, key: vector<u8>) {
         let event = LockedCoinUnlocked {
             LockedCoin_id: *object::borrow_id(lockedCoin),
             coin_type: type_name::into_string(type_name::get<T>()),
@@ -78,6 +78,7 @@ module sui_gives::lock_coin {
     public entry fun unlock_coin<T>(
         lockedCoin: &mut LockedCoin<T>,
         key: vector<u8>,
+        recipient: address,
         ctx: &mut TxContext
     ){
         let key_matched = sha3_256(key) == lockedCoin.key_hash;
@@ -88,7 +89,7 @@ module sui_gives::lock_coin {
         );
 
         let value = balance::value(&lockedCoin.balance);
-        let recipient = tx_context::sender(ctx);
+        
         emit_locked_coin_unlocked(lockedCoin, recipient, key);
         transfer::public_transfer(
             coin::take(
@@ -135,7 +136,7 @@ module sui_gives::lock_coin {
 
         {
             let lockedCoin = test_scenario::take_shared<LockedCoin<TEST_COIN>>(scenario);
-            unlock_coin(&mut lockedCoin, key, test_scenario::ctx(scenario));
+            unlock_coin(&mut lockedCoin, key, receiver, test_scenario::ctx(scenario));
             test_scenario::return_shared(lockedCoin);
         };
 
@@ -186,7 +187,7 @@ module sui_gives::lock_coin {
 
         {
             let lockedCoin = test_scenario::take_shared<LockedCoin<TEST_COIN>>(scenario);
-            unlock_coin(&mut lockedCoin, dummy_key, test_scenario::ctx(scenario));
+            unlock_coin(&mut lockedCoin, dummy_key, receiver, test_scenario::ctx(scenario));
             test_scenario::return_shared(lockedCoin);
         };
 
@@ -236,7 +237,7 @@ module sui_gives::lock_coin {
 
         {
             let lockedCoin = test_scenario::take_shared<LockedCoin<TEST_COIN>>(scenario);
-            unlock_coin(&mut lockedCoin, dummy_key, test_scenario::ctx(scenario));
+            unlock_coin(&mut lockedCoin, dummy_key, receiver, test_scenario::ctx(scenario));
             test_scenario::return_shared(lockedCoin);
         };
 

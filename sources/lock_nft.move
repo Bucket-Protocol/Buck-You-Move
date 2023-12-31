@@ -31,7 +31,7 @@ module sui_gives::lock_nft {
         recipient: address,
         key: vector<u8>,
     }
-    public fun emit_locked_nft_created<T: store + key>(
+    fun emit_locked_nft_created<T: store + key>(
         lockedNFT: &LockedNFT<T>
     ) {
         let event = LockedNFTCreated {
@@ -43,7 +43,7 @@ module sui_gives::lock_nft {
         };
         event::emit(event);
     }
-    public fun emit_locked_nft_unlocked<T: store + key>(
+    fun emit_locked_nft_unlocked<T: store + key>(
         lockedNFT: &LockedNFT<T>,
         recipient: address,
         key: vector<u8>
@@ -92,6 +92,7 @@ module sui_gives::lock_nft {
     public entry fun unlock_nft<T: store + key>(
         lockedNFT: &mut LockedNFT<T>,
         key: vector<u8>,
+        recipient: address,
         ctx: &mut TxContext
     ){
         let key_matched = sha3_256(key) == lockedNFT.key_hash;
@@ -102,7 +103,7 @@ module sui_gives::lock_nft {
         );
         
         let nft = object_table::remove(&mut lockedNFT.nft_object_table, lockedNFT.nft_table_key);
-        let recipient = tx_context::sender(ctx);
+        
         emit_locked_nft_unlocked(lockedNFT, recipient, key);
         transfer::public_transfer(nft, recipient);
     }
