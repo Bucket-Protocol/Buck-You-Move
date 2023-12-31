@@ -13,6 +13,7 @@ module sui_gives::lock_nft {
     use std::vector;
     use std::hash::{sha3_256};
     use sui::object_table::{Self, ObjectTable};
+    use sui_gives::lock_manager::{Self, LockerManager, add_lock, remove_lock, ERROR_WRONG_KEY};
     
     const WRONG_KEY_OR_NOT_AUTHORIZED: u64 = 0;
 
@@ -70,6 +71,7 @@ module sui_gives::lock_nft {
     }
 
     public entry fun lock_nft<T: store + key>(
+        lockerManager: &mut LockerManager,
         nft: T,
         key_hash: vector<u8>,
         ctx: &mut TxContext
@@ -86,15 +88,16 @@ module sui_gives::lock_nft {
             nft_table_key,
         };
         emit_locked_nft_created(&lockedNFT);
-        transfer::public_share_object(lockedNFT);
+        add_lock(lockerManager, key_hash, lockedNFT);
     }
 
     public entry fun unlock_nft<T: store + key>(
-        lockedNFT: &mut LockedNFT<T>,
+        lockerManager: &mut LockerManager,
         key: vector<u8>,
         recipient: address,
         ctx: &mut TxContext
     ){
+        let lockedNFT: LockedNFT<T> = remove_lock(lockerManager, key);
         let key_matched = sha3_256(key) == lockedNFT.key_hash;
         assert!(
             key_matched || 
@@ -102,9 +105,14 @@ module sui_gives::lock_nft {
             WRONG_KEY_OR_NOT_AUTHORIZED
         );
         
-        let nft = object_table::remove(&mut lockedNFT.nft_object_table, lockedNFT.nft_table_key);
+        emit_locked_nft_unlocked(&lockedNFT, recipient, key);
         
-        emit_locked_nft_unlocked(lockedNFT, recipient, key);
+        let LockedNFT {
+            id, creator, key_hash, nft_object_table, nft_table_key,
+        } = lockedNFT;
+        let nft = object_table::remove(&mut nft_object_table, nft_table_key);
         transfer::public_transfer(nft, recipient);
+        object_table::destroy_empty(nft_object_table);
+        object::delete(id);
     }
 }
