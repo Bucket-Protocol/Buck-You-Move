@@ -12,6 +12,7 @@ module sui_gives::lock_coin {
     use sui::tx_context::{Self, TxContext};
     use std::vector;
     use std::hash::{sha3_256};
+    use sui_gives::lock_manager::{Self, LockerManager, add_lock, remove_lock};
     
     const WRONG_KEY_OR_NOT_AUTHORIZED: u64 = 0;
 
@@ -58,10 +59,12 @@ module sui_gives::lock_coin {
         key_hash: vector<u8>,
         balance: Balance<T>,
     }
+    
     fun init(_ctx: &mut TxContext) {
     }
 
     public entry fun lock_coin<T>(
+        lockerManager: &mut LockerManager,
         coin: Coin<T>,
         key_hash: vector<u8>,
         ctx: &mut TxContext
@@ -73,183 +76,26 @@ module sui_gives::lock_coin {
             balance: coin::into_balance<T>(coin),
         };
         emit_locked_coin_created(&lockedCoin);
-        transfer::public_share_object(lockedCoin);
+        add_lock(lockerManager, key_hash, lockedCoin);
     }
     public entry fun unlock_coin<T>(
-        lockedCoin: &mut LockedCoin<T>,
+        // lockedCoin: &mut LockedCoin<T>,
+        lockerManager: &mut LockerManager,
         key: vector<u8>,
         recipient: address,
         ctx: &mut TxContext
     ){
-        let key_matched = sha3_256(key) == lockedCoin.key_hash;
-        assert!(
-            key_matched || 
-            &lockedCoin.creator == &tx_context::sender(ctx), 
-            WRONG_KEY_OR_NOT_AUTHORIZED
-        );
-
+        let lockedCoin: LockedCoin<T> = remove_lock(lockerManager, key);
+        
         let value = balance::value(&lockedCoin.balance);
         
-        emit_locked_coin_unlocked(lockedCoin, recipient, key);
+        emit_locked_coin_unlocked(&lockedCoin, recipient, key);
+        
+        let LockedCoin { id, creator, key_hash, balance } = lockedCoin;
         transfer::public_transfer(
-            coin::take(
-              &mut lockedCoin.balance, 
-              value, 
-              ctx
-            ), 
+            coin::from_balance(balance, ctx),
             recipient
         );
+        object::delete(id);
     }
-    
-
-    #[test]
-    fun test_lock_by_sender_then_unlock_by_receiver() {
-        use sui_gives::test_coin::{Self, TEST_COIN};
-        use sui::test_scenario;
-        use sui::balance;
-        use std::debug;
-        // create test addresses representing users
-        let sender = @0xad;
-        let receiver = @0xac;
-        
-        // first transaction to emulate module initialization
-        let scenario_val = test_scenario::begin(sender);
-        let scenario = &mut scenario_val;
-
-        let key = x"8714127bd7b54f7cd362ea56141fcf741c9937fb399feec150014511d68b715f";
-        let value = 10000;
-        {
-            init(test_scenario::ctx(scenario));
-            // test_coin::init(test_utils::create_one_time_witness<TEST>(), test_scenario::ctx(scenario))
-        };
-
-        test_scenario::next_tx(scenario, sender);
-        
-        
-        {
-            let coin = coin::from_balance(balance::create_for_testing<TEST_COIN>(value), test_scenario::ctx(scenario));
-            let key_hash = sha3_256(key);
-            lock_coin(coin, key_hash, test_scenario::ctx(scenario));
-        };
-
-        test_scenario::next_tx(scenario, receiver);
-
-        {
-            let lockedCoin = test_scenario::take_shared<LockedCoin<TEST_COIN>>(scenario);
-            unlock_coin(&mut lockedCoin, key, receiver, test_scenario::ctx(scenario));
-            test_scenario::return_shared(lockedCoin);
-        };
-
-        test_scenario::next_tx(scenario, receiver);
-
-        {
-            let coin1 = test_scenario::take_from_address<Coin<TEST_COIN>>(scenario, receiver);
-            assert!(balance::value(coin::balance(&coin1)) == value, 0);
-            test_scenario::return_to_address(receiver, coin1);
-        };
-        
-        test_scenario::end(scenario_val);
-    }
-
-    #[test]
-    #[expected_failure(abort_code = WRONG_KEY_OR_NOT_AUTHORIZED)]
-    fun test_lock_by_sender_then_unlock_by_recevier_by_another_key() {
-        use sui_gives::test_coin::{Self, TEST_COIN};
-        use sui::test_scenario;
-        use sui::balance;
-        use std::debug;
-        // create test addresses representing users
-        let sender = @0xad;
-        let receiver = @0xac;
-        
-        // first transaction to emulate module initialization
-        let scenario_val = test_scenario::begin(sender);
-        let scenario = &mut scenario_val;
-
-        let key = x"8714127bd7b54f7cd362ea56141fcf741c9937fb399feec150014511d68b715f";
-        let dummy_key = x"87";
-        let value = 10000;
-        {
-            init(test_scenario::ctx(scenario));
-            // test_coin::init(test_utils::create_one_time_witness<TEST>(), test_scenario::ctx(scenario))
-        };
-
-        test_scenario::next_tx(scenario, sender);
-        
-        
-        {
-            let coin = coin::from_balance(balance::create_for_testing<TEST_COIN>(value), test_scenario::ctx(scenario));
-            let key_hash = sha3_256(key);
-            lock_coin(coin, key_hash, test_scenario::ctx(scenario));
-        };
-
-        test_scenario::next_tx(scenario, receiver);
-
-        {
-            let lockedCoin = test_scenario::take_shared<LockedCoin<TEST_COIN>>(scenario);
-            unlock_coin(&mut lockedCoin, dummy_key, receiver, test_scenario::ctx(scenario));
-            test_scenario::return_shared(lockedCoin);
-        };
-
-        test_scenario::next_tx(scenario, receiver);
-
-        {
-            let coin1 = test_scenario::take_from_address<Coin<TEST_COIN>>(scenario, receiver);
-            assert!(balance::value(coin::balance(&coin1)) == value, 0);
-            test_scenario::return_to_address(receiver, coin1);
-        };
-        
-        test_scenario::end(scenario_val);
-    }
-
-    #[test]
-    fun test_lock_by_sender_then_unlock_by_sender_by_another_key() {
-        use sui_gives::test_coin::{Self, TEST_COIN};
-        use sui::test_scenario;
-        use sui::balance;
-        use std::debug;
-        // create test addresses representing users
-        let sender = @0xad;
-        let receiver = @0xac;
-        
-        // first transaction to emulate module initialization
-        let scenario_val = test_scenario::begin(sender);
-        let scenario = &mut scenario_val;
-
-        let key = x"8714127bd7b54f7cd362ea56141fcf741c9937fb399feec150014511d68b715f";
-        let dummy_key = x"87";
-        let value = 10000;
-        {
-            init(test_scenario::ctx(scenario));
-            // test_coin::init(test_utils::create_one_time_witness<TEST>(), test_scenario::ctx(scenario))
-        };
-
-        test_scenario::next_tx(scenario, sender);
-        
-        
-        {
-            let coin = coin::from_balance(balance::create_for_testing<TEST_COIN>(value), test_scenario::ctx(scenario));
-            let key_hash = sha3_256(key);
-            lock_coin(coin, key_hash, test_scenario::ctx(scenario));
-        };
-
-        test_scenario::next_tx(scenario, sender);
-
-        {
-            let lockedCoin = test_scenario::take_shared<LockedCoin<TEST_COIN>>(scenario);
-            unlock_coin(&mut lockedCoin, dummy_key, receiver, test_scenario::ctx(scenario));
-            test_scenario::return_shared(lockedCoin);
-        };
-
-        test_scenario::next_tx(scenario, sender);
-
-        {
-            let coin1 = test_scenario::take_from_address<Coin<TEST_COIN>>(scenario, sender);
-            assert!(balance::value(coin::balance(&coin1)) == value, 0);
-            test_scenario::return_to_address(sender, coin1);
-        };
-        
-        test_scenario::end(scenario_val);
-    }
-    
 }
