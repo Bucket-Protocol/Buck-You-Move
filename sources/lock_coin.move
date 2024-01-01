@@ -12,7 +12,7 @@ module sui_gives::lock_coin {
     use sui::tx_context::{Self, TxContext};
     use std::vector;
     use std::hash::{sha3_256};
-    use sui_gives::lock_manager::{Self, LockerManager, add_lock, remove_lock, ERROR_WRONG_KEY};
+    use sui_gives::lock_manager::{Self, LockerManager, add_lock, remove_lock, remove_lock_by_key_hash};
     
 
     struct LockedCoinCreated has copy, drop {
@@ -29,7 +29,9 @@ module sui_gives::lock_coin {
         recipient: address,
         key: vector<u8>,
         balance: u64,
+        unlocked_by_creator: bool,
     }
+
     fun emit_locked_coin_created<T>(lockedCoin: &LockedCoin<T>) {
         let event = LockedCoinCreated {
             LockedCoin_id: *object::borrow_id(lockedCoin),
@@ -48,6 +50,7 @@ module sui_gives::lock_coin {
             recipient: recipient,
             key: key,
             balance: balance::value(&lockedCoin.balance),
+            unlocked_by_creator: lockedCoin.creator == recipient,
         };
         event::emit(event);
     }
@@ -86,11 +89,32 @@ module sui_gives::lock_coin {
     ){
         let lockedCoin: LockedCoin<T> = remove_lock(lockerManager, key);
         
-        let value = balance::value(&lockedCoin.balance);
-        
         emit_locked_coin_unlocked(&lockedCoin, recipient, key);
         
         let LockedCoin { id, creator, key_hash, balance } = lockedCoin;
+        let value = balance::value(&balance);
+        transfer::public_transfer(
+            coin::from_balance(balance, ctx),
+            recipient
+        );
+        object::delete(id);
+    }
+
+    const ERROR_NOT_CREATOR: u64 = 2;
+    public entry fun unlock_coin_by_key_hash_from_creator<T>(
+        // lockedCoin: &mut LockedCoin<T>,
+        lockerManager: &mut LockerManager,
+        key_hash: vector<u8>,
+        ctx: &mut TxContext
+    ){
+        let recipient = tx_context::sender(ctx);
+        let lockedCoin: LockedCoin<T> = remove_lock_by_key_hash(lockerManager, key_hash);
+        
+        emit_locked_coin_unlocked(&lockedCoin, recipient, key_hash);
+        
+        let LockedCoin { id, creator, key_hash, balance } = lockedCoin;
+        assert!(creator == recipient, ERROR_NOT_CREATOR);
+        let value = balance::value(&balance);
         transfer::public_transfer(
             coin::from_balance(balance, ctx),
             recipient
@@ -114,8 +138,8 @@ module sui_gives::lock_coin {
         let key = x"8714127bd7b54f7cd362ea56141fcf741c9937fb399feec150014511d68b715f";
         let value = 10000;
         {
-            lock_manager::create_locker_manager(test_scenario::ctx(scenario));
             init(test_scenario::ctx(scenario));
+            lock_manager::test_init(test_scenario::ctx(scenario));
             // test_coin::init(test_utils::create_one_time_witness<TEST>(), test_scenario::ctx(scenario))
         };
 
@@ -147,8 +171,10 @@ module sui_gives::lock_coin {
         
         test_scenario::end(scenario_val);
     }
+
+    use sui::dynamic_field::{EFieldDoesNotExist};
     #[test]
-    #[expected_failure(abort_code = ERROR_WRONG_KEY)]
+    #[expected_failure(abort_code = EFieldDoesNotExist)]
     fun test_lock_by_sender_then_unlock_by_receiver_with_another_key() {
         use sui_gives::test_coin::{Self, TEST_COIN};
         use sui::test_scenario;
@@ -166,8 +192,8 @@ module sui_gives::lock_coin {
         let dummy_key = x"87";
         let value = 10000;
         {
-            lock_manager::create_locker_manager(test_scenario::ctx(scenario));
             init(test_scenario::ctx(scenario));
+            lock_manager::test_init(test_scenario::ctx(scenario));
             // test_coin::init(test_utils::create_one_time_witness<TEST>(), test_scenario::ctx(scenario))
         };
 

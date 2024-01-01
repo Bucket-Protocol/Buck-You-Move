@@ -15,7 +15,6 @@ module sui_gives::lock_manager {
     use sui::object_table::{Self, ObjectTable};
     use sui::dynamic_object_field as dof;
 
-    const ERROR_WRONG_KEY: u64 = 0;
     friend sui_gives::lock_coin;
     friend sui_gives::lock_nft;
 
@@ -23,11 +22,16 @@ module sui_gives::lock_manager {
         id: UID
     }
 
-    fun init(_ctx: &mut TxContext) {
-        create_locker_manager(_ctx);
+    fun init(ctx: &mut TxContext) {
+        create_locker_manager(ctx);
     }
 
-    public(friend) fun create_locker_manager(ctx: &mut TxContext) {
+    #[test_only]
+    public fun test_init(ctx: &mut TxContext) {
+        create_locker_manager(ctx);
+    }
+
+    fun create_locker_manager(ctx: &mut TxContext) {
         transfer::share_object(LockerManager {
             id: object::new(ctx),
         });
@@ -46,7 +50,12 @@ module sui_gives::lock_manager {
         key: vector<u8>,
     ): T {
         let key_hash = sha3_256(key);
-        assert!(dof::exists_(&mut manager.id, key_hash), ERROR_WRONG_KEY);
+        dof::remove(&mut manager.id, key_hash)
+    }
+    public(friend) fun remove_lock_by_key_hash<T: key + store>(
+        manager: &mut LockerManager,
+        key_hash: vector<u8>,
+    ): T {
         dof::remove(&mut manager.id, key_hash)
     }
 

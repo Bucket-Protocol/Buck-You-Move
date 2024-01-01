@@ -13,7 +13,7 @@ module sui_gives::lock_nft {
     use std::vector;
     use std::hash::{sha3_256};
     use sui::object_table::{Self, ObjectTable};
-    use sui_gives::lock_manager::{Self, LockerManager, add_lock, remove_lock, ERROR_WRONG_KEY};
+    use sui_gives::lock_manager::{Self, LockerManager, add_lock, remove_lock, remove_lock_by_key_hash};
     
     const WRONG_KEY_OR_NOT_AUTHORIZED: u64 = 0;
 
@@ -31,6 +31,7 @@ module sui_gives::lock_nft {
         nft_id: ID,
         recipient: address,
         key: vector<u8>,
+        unlocked_by_creator: bool,
     }
     fun emit_locked_nft_created<T: store + key>(
         lockedNFT: &LockedNFT<T>
@@ -56,6 +57,7 @@ module sui_gives::lock_nft {
             nft_id: lockedNFT.nft_table_key,
             recipient: recipient,
             key: key,
+            unlocked_by_creator: lockedNFT.creator == recipient,
         };
         event::emit(event);
     }
@@ -98,18 +100,33 @@ module sui_gives::lock_nft {
         ctx: &mut TxContext
     ){
         let lockedNFT: LockedNFT<T> = remove_lock(lockerManager, key);
-        let key_matched = sha3_256(key) == lockedNFT.key_hash;
-        assert!(
-            key_matched || 
-            &lockedNFT.creator == &tx_context::sender(ctx), 
-            WRONG_KEY_OR_NOT_AUTHORIZED
-        );
         
         emit_locked_nft_unlocked(&lockedNFT, recipient, key);
         
         let LockedNFT {
             id, creator, key_hash, nft_object_table, nft_table_key,
         } = lockedNFT;
+        let nft = object_table::remove(&mut nft_object_table, nft_table_key);
+        transfer::public_transfer(nft, recipient);
+        object_table::destroy_empty(nft_object_table);
+        object::delete(id);
+    }
+    const ERROR_NOT_CREATOR: u64 = 2;
+    public entry fun unlock_nft_by_key_hash_from_creator<T: store + key>(
+        lockerManager: &mut LockerManager,
+        key_hash: vector<u8>,
+        ctx: &mut TxContext
+    ){
+        let recipient = tx_context::sender(ctx);
+        let lockedNFT: LockedNFT<T> = remove_lock_by_key_hash(lockerManager, key_hash);
+        
+        emit_locked_nft_unlocked(&lockedNFT, recipient, key_hash);
+        
+        let LockedNFT {
+            id, creator, key_hash, nft_object_table, nft_table_key,
+        } = lockedNFT;
+        assert!(creator == recipient, ERROR_NOT_CREATOR);
+
         let nft = object_table::remove(&mut nft_object_table, nft_table_key);
         transfer::public_transfer(nft, recipient);
         object_table::destroy_empty(nft_object_table);
