@@ -1,5 +1,5 @@
 [package]
-name = "sui_gives"
+name = "SuiGives"
 version = "0.0.1"
 
 [dependencies]
