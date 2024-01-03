@@ -7,6 +7,7 @@ module sui_gives::locker {
     use sui::dynamic_object_field as dof;
     use sui_gives::object_bag_with_events::ObjectBag;
     use sui::event;
+    use std::vector;
 
     //-------- Events --------------
 
@@ -14,12 +15,15 @@ module sui_gives::locker {
         creator: address,
         lock_id: ID,
         bag_id: ID,
+        key_hash: vector<u8>,
     }
 
     struct Unlocked has copy, drop {
         unlocker: address,
         lock_id: ID,
         bag_id: ID,
+        key_hash: vector<u8>,
+        key: vector<u8>,
     }
 
     //-------- Objects --------------
@@ -61,7 +65,7 @@ module sui_gives::locker {
         };
         let lock_id = object::id(&contents);
         dof::add(&mut locker.id, key_hash, contents);
-        event::emit(Locked { creator, lock_id, bag_id });
+        event::emit(Locked { creator, lock_id, bag_id, key_hash });
     }
 
     public fun unlock(
@@ -73,9 +77,9 @@ module sui_gives::locker {
         let key_hash = sha3_256(key);
         let contents = dof::remove(&mut locker.id, key_hash);
         let lock_id = object::id(&contents);
-        let LockerContents { id, bag, creator: _ } = contents;
+        let LockerContents { id, bag, creator } = contents;
         let bag_id = object::id(&bag);
-        event::emit(Unlocked { unlocker, lock_id, bag_id });
+        event::emit(Unlocked { unlocker, lock_id, bag_id, key_hash, key });
         object::delete(id);
         bag
     }
@@ -101,7 +105,7 @@ module sui_gives::locker {
         let LockerContents { id, bag, creator } = contents;
         assert!(unlocker == creator, 0);
         let bag_id = object::id(&bag);
-        event::emit(Unlocked { unlocker, lock_id, bag_id });
+        event::emit(Unlocked { unlocker, lock_id, bag_id , key_hash, key: vector::empty<u8>()});
         object::delete(id);
         bag
     }
