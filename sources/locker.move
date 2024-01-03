@@ -13,14 +13,14 @@ module sui_gives::locker {
 
     struct Locked has copy, drop {
         creator: address,
-        lock_id: ID,
+        lockerContent_id: ID,
         bag_id: ID,
         key_hash: vector<u8>,
     }
 
     struct Unlocked has copy, drop {
         unlocker: address,
-        lock_id: ID,
+        lockerContent_id: ID,
         bag_id: ID,
         key_hash: vector<u8>,
         key: vector<u8>,
@@ -63,9 +63,9 @@ module sui_gives::locker {
             bag,
             creator,
         };
-        let lock_id = object::id(&contents);
+        let lockerContent_id = object::id(&contents);
         dof::add(&mut locker.id, key_hash, contents);
-        event::emit(Locked { creator, lock_id, bag_id, key_hash });
+        event::emit(Locked { creator, lockerContent_id, bag_id, key_hash });
     }
 
     public fun unlock(
@@ -76,10 +76,10 @@ module sui_gives::locker {
         let unlocker = tx_context::sender(ctx);
         let key_hash = sha3_256(key);
         let contents = dof::remove(&mut locker.id, key_hash);
-        let lock_id = object::id(&contents);
-        let LockerContents { id, bag, creator } = contents;
+        let lockerContent_id = object::id(&contents);
+        let LockerContents { id, bag, creator: _ } = contents;
         let bag_id = object::id(&bag);
-        event::emit(Unlocked { unlocker, lock_id, bag_id, key_hash, key });
+        event::emit(Unlocked { unlocker, lockerContent_id, bag_id, key_hash, key });
         object::delete(id);
         bag
     }
@@ -101,11 +101,11 @@ module sui_gives::locker {
     ): ObjectBag {
         let unlocker = tx_context::sender(ctx);
         let contents = dof::remove(&mut locker.id, key_hash);
-        let lock_id = object::id(&contents);
+        let lockerContent_id = object::id(&contents);
         let LockerContents { id, bag, creator } = contents;
         assert!(unlocker == creator, 0);
         let bag_id = object::id(&bag);
-        event::emit(Unlocked { unlocker, lock_id, bag_id , key_hash, key: vector::empty<u8>()});
+        event::emit(Unlocked { unlocker, lockerContent_id, bag_id , key_hash, key: vector::empty<u8>()});
         object::delete(id);
         bag
     }

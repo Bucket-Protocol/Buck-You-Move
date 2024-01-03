@@ -25,9 +25,9 @@ module sui_gives::object_bag_with_events {
         balance: u64,
         sender: address,
     }
-    struct AddNft has copy, drop {
+    struct AddObject has copy, drop {
         bag_id: ID,
-        nft_type: ASCIIString,
+        object_type: ASCIIString,
         sender: address,
     }
     struct RemoveCoin has copy, drop {
@@ -36,9 +36,9 @@ module sui_gives::object_bag_with_events {
         balance: u64,
         sender: address,
     }
-    struct RemoveNft has copy, drop {
+    struct RemoveObject has copy, drop {
         bag_id: ID,
-        nft_type: ASCIIString,
+        object_type: ASCIIString,
         sender: address,
     }
 
@@ -90,7 +90,7 @@ module sui_gives::object_bag_with_events {
         add(bag, k, v);
     }
 
-    public fun add_nft<K: copy + drop + store, V: key + store>(
+    public fun add_object<K: copy + drop + store, V: key + store>(
         bag: &mut ObjectBag, 
         k: K, 
         v: V,
@@ -99,9 +99,9 @@ module sui_gives::object_bag_with_events {
         assert!(is_not_coin<V>(), ECantUseCoinAtThisFunction);
         let bag_id = object::id(bag);
         event::emit(
-            AddNft{
+            AddObject{
                 bag_id,
-                nft_type: type_name::into_string((type_name::get<V>())),
+                object_type: type_name::into_string((type_name::get<V>())),
                 sender: tx_context::sender(ctx)
             }
         );
@@ -173,22 +173,22 @@ module sui_gives::object_bag_with_events {
         v
     }
 
-    public fun remove_nft<K: copy + drop + store, V: key + store>(
+    public fun remove_object<K: copy + drop + store, V: key + store>(
         bag: &mut ObjectBag, 
         k: K, 
         ctx: &TxContext
     ): V {
         assert!(is_not_coin<V>(), ECantUseCoinAtThisFunction);
         let bag_id = object::id(bag);
-        let nft = remove<K, V>(bag, k);
+        let object = remove<K, V>(bag, k);
         event::emit(
-            RemoveNft{
+            RemoveObject{
                 bag_id,
-                nft_type: type_name::into_string((type_name::get<V>())),
+                object_type: type_name::into_string((type_name::get<V>())),
                 sender: tx_context::sender(ctx)
             }
         );
-        nft
+        object
     }
 
     /// Returns true iff there is an value associated with the key `k: K` in the bag `bag: &ObjectBag`
