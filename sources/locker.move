@@ -5,7 +5,7 @@ module sui_gives::locker {
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
     use sui::dynamic_object_field as dof;
-    use sui::object_bag::ObjectBag;
+    use sui_gives::object_bag_with_events::ObjectBag;
     use sui::event;
 
     //-------- Events --------------
@@ -13,11 +13,13 @@ module sui_gives::locker {
     struct Locked has copy, drop {
         creator: address,
         lock_id: ID,
+        bag_id: ID,
     }
 
     struct Unlocked has copy, drop {
         unlocker: address,
         lock_id: ID,
+        bag_id: ID,
     }
 
     //-------- Objects --------------
@@ -51,6 +53,7 @@ module sui_gives::locker {
         ctx: &mut TxContext,
     ) {
         let creator = tx_context::sender(ctx);
+        let bag_id = object::id(&bag);
         let contents = LockerContents {
             id: object::new(ctx),
             bag,
@@ -58,7 +61,7 @@ module sui_gives::locker {
         };
         let lock_id = object::id(&contents);
         dof::add(&mut locker.id, key_hash, contents);
-        event::emit(Locked { creator, lock_id });
+        event::emit(Locked { creator, lock_id, bag_id });
     }
 
     public fun unlock(
@@ -71,7 +74,8 @@ module sui_gives::locker {
         let contents = dof::remove(&mut locker.id, key_hash);
         let lock_id = object::id(&contents);
         let LockerContents { id, bag, creator: _ } = contents;
-        event::emit(Unlocked { unlocker, lock_id });
+        let bag_id = object::id(&bag);
+        event::emit(Unlocked { unlocker, lock_id, bag_id });
         object::delete(id);
         bag
     }
@@ -96,7 +100,8 @@ module sui_gives::locker {
         let lock_id = object::id(&contents);
         let LockerContents { id, bag, creator } = contents;
         assert!(unlocker == creator, 0);
-        event::emit(Unlocked { unlocker, lock_id });
+        let bag_id = object::id(&bag);
+        event::emit(Unlocked { unlocker, lock_id, bag_id });
         object::delete(id);
         bag
     }

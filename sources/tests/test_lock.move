@@ -2,7 +2,7 @@
 module sui_gives::test_lock {
 
     use std::hash::sha3_256;
-    use sui::object_bag;
+    use sui_gives::object_bag_with_events;
     use sui::coin;
     use sui::sui::SUI;
     use sui_gives::test_coin::TEST_COIN;
@@ -23,11 +23,11 @@ module sui_gives::test_lock {
 
         ts::next_tx(scenario, creator);
         {
-            let bag = object_bag::new(ts::ctx(scenario));
+            let bag = object_bag_with_events::new(ts::ctx(scenario));
             let sui_coin = coin::mint_for_testing<SUI>(1_000, ts::ctx(scenario));
-            object_bag::add(&mut bag, 1, sui_coin);
+            object_bag_with_events::add_coin(&mut bag, 1, sui_coin, ts::ctx(scenario));
             let test_coin = coin::mint_for_testing<TEST_COIN>(1_000, ts::ctx(scenario));
-            object_bag::add(&mut bag, 2, test_coin);
+            object_bag_with_events::add_coin(&mut bag, 2, test_coin, ts::ctx(scenario));
             let locker = ts::take_shared<Locker>(scenario);
             locker::lock(&mut locker, key_hash, bag, ts::ctx(scenario));
             ts::return_shared(locker);
