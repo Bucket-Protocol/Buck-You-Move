@@ -5,7 +5,7 @@
 /// `sui::bag`, the values bound to these dynamic fields _must_ be objects themselves. This allows
 /// for the objects to still exist in storage, which may be important for external tools.
 /// The difference is otherwise not observable from within Move.
-module sui_gives::object_bag_with_events {
+module sui_gives::object_bag {
     use std::option::Option;
     use sui::object::{Self, ID, UID};
     use sui::dynamic_object_field as ofield;
@@ -15,9 +15,7 @@ module sui_gives::object_bag_with_events {
     use std::string::{Self};
     use std::type_name;
     use sui::event;
-    use std::debug;
     
-
     //-------- Events --------------
     struct AddCoin has copy, drop {
         bag_id: ID,
@@ -67,14 +65,14 @@ module sui_gives::object_bag_with_events {
     /// Adds a key-value pair to the bag `bag: &mut ObjectBag`
     /// Aborts with `sui::dynamic_field::EFieldAlreadyExists` if the bag already has an entry with
     /// that key `k: K`.
-    fun add<K: copy + drop + store, V: key + store>(bag: &mut ObjectBag, k: K, v: V) {
+    fun add<V: key + store>(bag: &mut ObjectBag, k: u64, v: V) {
         ofield::add(&mut bag.id, k, v);
         bag.size = bag.size + 1;
     }
 
-    public fun add_coin<K: copy + drop + store, T>(
+    public fun add_coin<T>(
         bag: &mut ObjectBag, 
-        k: K, 
+        k: u64, 
         v: Coin<T>, 
         ctx: &TxContext
     ) {
@@ -90,9 +88,9 @@ module sui_gives::object_bag_with_events {
         add(bag, k, v);
     }
 
-    public fun add_object<K: copy + drop + store, V: key + store>(
+    public fun add_object<V: key + store>(
         bag: &mut ObjectBag, 
-        k: K, 
+        k: u64, 
         v: V,
         ctx: &TxContext
     ) {
@@ -115,11 +113,9 @@ module sui_gives::object_bag_with_events {
         if(string::length(&type_string) > 76){
             type_substring = string::sub_string(&type_string, 0, 76);
         };
-        debug::print(&type_substring);
         let isCoin = type_substring == string::utf8(
             b"0000000000000000000000000000000000000000000000000000000000000002::coin::Coin"
         );
-        debug::print(&isCoin);
         !isCoin
     }
 
@@ -149,17 +145,17 @@ module sui_gives::object_bag_with_events {
     /// that key `k: K`.
     /// Aborts with `sui::dynamic_field::EFieldTypeMismatch` if the bag has an entry for the key, but
     /// the value does not have the specified type.
-    fun remove<K: copy + drop + store, V: key + store>(bag: &mut ObjectBag, k: K): V {
+    fun remove<V: key + store>(bag: &mut ObjectBag, k: u64): V {
         let v = ofield::remove(&mut bag.id, k);
         bag.size = bag.size - 1;
         v
     }
-    public fun remove_coin<K: copy + drop + store, T>(
+    public fun remove_coin<T>(
         bag: &mut ObjectBag, 
-        k: K, 
+        k: u64, 
         ctx: &TxContext
     ): Coin<T> {
-        let v = remove<K, Coin<T>>(bag, k);
+        let v = remove<Coin<T>>(bag, k);
         let bag_id = object::id(bag);
         
         event::emit(
@@ -173,14 +169,14 @@ module sui_gives::object_bag_with_events {
         v
     }
 
-    public fun remove_object<K: copy + drop + store, V: key + store>(
+    public fun remove_object<V: key + store>(
         bag: &mut ObjectBag, 
-        k: K, 
+        k: u64, 
         ctx: &TxContext
     ): V {
         assert!(is_not_coin<V>(), ECantUseCoinAtThisFunction);
         let bag_id = object::id(bag);
-        let object = remove<K, V>(bag, k);
+        let object = remove<V>(bag, k);
         event::emit(
             RemoveObject{
                 bag_id,

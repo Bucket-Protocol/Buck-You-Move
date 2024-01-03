@@ -5,7 +5,7 @@ module sui_gives::locker {
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
     use sui::dynamic_object_field as dof;
-    use sui_gives::object_bag_with_events::ObjectBag;
+    use sui_gives::object_bag::ObjectBag;
     use sui::event;
     use std::vector;
 
