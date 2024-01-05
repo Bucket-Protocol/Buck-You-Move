@@ -9,6 +9,7 @@ module sui_gives::test_lock {
     use sui_gives::locker::{Self, Locker};
     use sui::balance::{Self};
     use sui::coin::{Self, Coin};
+    use std::option::{Self};
 
     #[test]
     fun test_lock() {
@@ -30,7 +31,7 @@ module sui_gives::test_lock {
             let test_nft = test_nft::mint(b"test", b"a test", b"https://www.sui.io", creator, ts::ctx(scenario));
             let locker = ts::take_shared<Locker>(scenario);
 
-            locker::create_locker_contents(&mut locker, creator, creator, key_hash, ts::ctx(scenario));
+            locker::create_locker_contents(&mut locker, creator, option::some(creator), key_hash, ts::ctx(scenario));
             locker::add_coin(&mut locker, key_hash, sui_coin, ts::ctx(scenario));
             locker::add_coin(&mut locker, key_hash, test_coin, ts::ctx(scenario));
             locker::add_object(&mut locker, key_hash, test_nft, ts::ctx(scenario));
@@ -41,7 +42,7 @@ module sui_gives::test_lock {
         ts::next_tx(scenario, unlocker);
         {
             let locker = ts::take_shared<Locker>(scenario);
-            locker::unlock(&mut locker, key, unlocker);
+            locker::unlock(&mut locker, key, option::some(unlocker), ts::ctx(scenario));
             locker::remove_coin_to<SUI>(&mut locker, key_hash, 0, unlocker, ts::ctx(scenario));
             locker::remove_coin_to<TEST_COIN>(&mut locker, key_hash, 1, unlocker, ts::ctx(scenario));
             locker::remove_object_to<TEST_NFT>(&mut locker, key_hash, 2, unlocker, ts::ctx(scenario));

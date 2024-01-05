@@ -11,6 +11,7 @@ module sui_gives::locker {
     use std::string::{Self};
     use sui::coin::{Self, Coin};
     use std::type_name;
+    use std::option::{Self, Option};
 
     //-------- Errors --------------
     const ENotAuthorized: u64 = 8;
@@ -22,7 +23,7 @@ module sui_gives::locker {
         key_hash: vector<u8>,
         lockerContents_id: ID,
         creator: address,
-        unlocker: address,
+        unlocker: Option<address>,
         tx_sender: address,
     }
 
@@ -30,7 +31,7 @@ module sui_gives::locker {
         key_hash: vector<u8>,
         lockerContents_id: ID,
         creator: address,
-        unlocker: address,
+        unlocker: Option<address>,
         tx_sender: address,
     }
 
@@ -39,7 +40,8 @@ module sui_gives::locker {
         key_hash: vector<u8>,
         lockerContents_id: ID,
         creator: address,
-        unlocker: address,
+        unlocker: Option<address>,
+        tx_sender: address,
     }
 
     struct AddCoin has copy, drop {
@@ -82,7 +84,7 @@ module sui_gives::locker {
         id: UID,
         bag: ObjectBag,
         creator: address,
-        unlocker: address,
+        unlocker: Option<address>,
     }
 
     //-------- Constructor --------------
@@ -101,7 +103,7 @@ module sui_gives::locker {
     public fun create_locker_contents(
         locker: &mut Locker,
         creator: address,
-        unlocker: address,
+        unlocker: Option<address>,
         key_hash: vector<u8>,
         ctx: &mut TxContext,
     ) {
@@ -134,7 +136,7 @@ module sui_gives::locker {
         let LockerContents { id, bag, creator, unlocker} = contents;
         assert!(
             creator == tx_context::sender(ctx) || 
-            unlocker == tx_context::sender(ctx),
+            *option::borrow(&unlocker) == tx_context::sender(ctx),
             ENotAuthorized
         );
 
@@ -154,7 +156,8 @@ module sui_gives::locker {
     public fun unlock(
         locker: &mut Locker,
         key: vector<u8>,
-        unlocker: address,
+        unlocker: Option<address>,
+        ctx: &mut TxContext,
     ) {
         let key_hash = sha3_256(key);
         let contents = dof::borrow_mut<vector<u8>, LockerContents>(&mut locker.id, key_hash);
@@ -166,6 +169,7 @@ module sui_gives::locker {
             lockerContents_id: object::id(contents),
             creator: contents.creator,
             unlocker,
+            tx_sender: tx_context::sender(ctx),
         });
     }
 
@@ -237,7 +241,7 @@ module sui_gives::locker {
         let contents = dof::borrow_mut<vector<u8>, LockerContents>(&mut locker.id, key_hash);
         assert!(
             contents.creator == tx_context::sender(ctx) || 
-            contents.unlocker == tx_context::sender(ctx),
+            *option::borrow(&contents.unlocker) == tx_context::sender(ctx),
             ENotAuthorized
         );
 
@@ -263,7 +267,7 @@ module sui_gives::locker {
         let contents = dof::borrow_mut<vector<u8>, LockerContents>(&mut locker.id, key_hash);
         assert!(
             contents.creator == tx_context::sender(ctx) || 
-            contents.unlocker == tx_context::sender(ctx),
+            *option::borrow(&contents.unlocker) == tx_context::sender(ctx),
             ENotAuthorized
         );
 
