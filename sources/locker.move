@@ -5,25 +5,59 @@ module sui_gives::locker {
     use sui::transfer;
     use sui::tx_context::{Self, TxContext};
     use sui::dynamic_object_field as dof;
-    use sui_gives::object_bag::ObjectBag;
+    use sui_gives::object_bag::{Self, ObjectBag};
     use sui::event;
     use std::vector;
+    use std::ascii::{String as ASCIIString};
+    use std::string::{Self};
+    use sui::coin::{Self, Coin};
+    use std::type_name;
+
+    //-------- Errors --------------
+    const EOnlyCreatorCanLock: u64 = 8;
+    const ECanNotUseCoinAtThisFunction: u64 = 7;
 
     //-------- Events --------------
 
     struct Locked has copy, drop {
+        key_hash: vector<u8>,
+        bag_id: ID,
         creator: address,
         lockerContent_id: ID,
-        bag_id: ID,
-        key_hash: vector<u8>,
     }
 
     struct Unlocked has copy, drop {
+        key_hash: vector<u8>,
+        bag_id: ID,
+        creator: address,
         unlocker: address,
         lockerContent_id: ID,
-        bag_id: ID,
-        key_hash: vector<u8>,
         key: vector<u8>,
+    }
+
+    struct AddCoin has copy, drop {
+        key_hash: vector<u8>,
+        bag_id: ID,
+        coin_type: ASCIIString,
+        balance: u64,
+        sender: address,
+    }
+    struct AddObject has copy, drop {
+        key_hash: vector<u8>,
+        bag_id: ID,
+        object_type: ASCIIString,
+        sender: address,
+    }
+    struct RemoveCoin has copy, drop {
+        bag_id: ID,
+        coin_type: ASCIIString,
+        balance: u64,
+        sender: address,
+    }
+    struct RemoveObject has copy, drop {
+        bag_id: ID,
+        object_type: ASCIIString,
+        sender: address,
     }
 
     //-------- Objects --------------
@@ -44,28 +78,51 @@ module sui_gives::locker {
         create_locker(ctx);
     }
 
-    //-------- Public Functions --------------
-
-    public fun create_locker(ctx: &mut TxContext) {
+    fun create_locker(ctx: &mut TxContext) {
         transfer::share_object(Locker { id: object::new(ctx) })
     }
 
-    public fun lock(
+    //-------- Public Functions --------------
+
+
+    public fun create_locker_contents(
         locker: &mut Locker,
+        creator: address,
         key_hash: vector<u8>,
-        bag: ObjectBag,
         ctx: &mut TxContext,
     ) {
-        let creator = tx_context::sender(ctx);
-        let bag_id = object::id(&bag);
+        let bag = object_bag::new(ctx);
         let contents = LockerContents {
             id: object::new(ctx),
             bag,
             creator,
         };
-        let lockerContent_id = object::id(&contents);
         dof::add(&mut locker.id, key_hash, contents);
-        event::emit(Locked { creator, lockerContent_id, bag_id, key_hash });
+    }
+
+
+    public fun lock_coin<T>(
+        locker: &mut Locker,
+        key_hash: vector<u8>,
+        v: Coin<T>, 
+        ctx: &TxContext
+    ) {
+        let contents = dof::borrow_mut<vector<u8>, LockerContents>(&mut locker.id, key_hash);
+        assert!(contents.creator == tx_context::sender(ctx), EOnlyCreatorCanLock);
+        let index = object_bag::length(&contents.bag);
+        object_bag::add_coin(&mut contents.bag, index, v, ctx);
+    }
+
+    public fun lock_object<T: key + store>(
+        locker: &mut Locker,
+        key_hash: vector<u8>,
+        v: T,
+        ctx: &TxContext
+    ) {
+        let contents = dof::borrow_mut<vector<u8>, LockerContents>(&mut locker.id, key_hash);
+        assert!(contents.creator == tx_context::sender(ctx), EOnlyCreatorCanLock);
+        let index = object_bag::length(&contents.bag);
+        object_bag::add_object(&mut contents.bag, index, v, ctx);
     }
 
     public fun unlock(

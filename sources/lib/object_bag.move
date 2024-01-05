@@ -15,6 +15,8 @@ module sui_gives::object_bag {
     use std::string::{Self};
     use std::type_name;
     use sui::event;
+
+    friend sui_gives::locker;
     
     //-------- Events --------------
     struct AddCoin has copy, drop {
@@ -44,7 +46,7 @@ module sui_gives::object_bag {
 
     // Attempted to destroy a non-empty bag
     const EBagNotEmpty: u64 = 0;
-    const ECantUseCoinAtThisFunction: u64 = 7;
+    const ECanNotUseCoinAtThisFunction: u64 = 7;
 
     //-------- Objects --------------
     struct ObjectBag has key, store {
@@ -55,7 +57,7 @@ module sui_gives::object_bag {
     }
 
     /// Creates a new, empty bag
-    public fun new(ctx: &mut TxContext): ObjectBag {
+    public(friend) fun new(ctx: &mut TxContext): ObjectBag {
         ObjectBag {
             id: object::new(ctx),
             size: 0,
@@ -70,7 +72,7 @@ module sui_gives::object_bag {
         bag.size = bag.size + 1;
     }
 
-    public fun add_coin<T>(
+    public(friend) fun add_coin<T>(
         bag: &mut ObjectBag, 
         k: u64, 
         v: Coin<T>, 
@@ -88,13 +90,13 @@ module sui_gives::object_bag {
         add(bag, k, v);
     }
 
-    public fun add_object<V: key + store>(
+    public(friend) fun add_object<V: key + store>(
         bag: &mut ObjectBag, 
         k: u64, 
         v: V,
         ctx: &TxContext
     ) {
-        assert!(is_not_coin<V>(), ECantUseCoinAtThisFunction);
+        assert!(is_not_coin<V>(), ECanNotUseCoinAtThisFunction);
         let bag_id = object::id(bag);
         event::emit(
             AddObject{
@@ -136,9 +138,9 @@ module sui_gives::object_bag {
     /// 
     /// Disabled because it is not needed for the current use case
     /// 
-    // public fun borrow_mut<K: copy + drop + store, V: key + store>(bag: &mut ObjectBag, k: K): &mut V {
-    //     ofield::borrow_mut(&mut bag.id, k)
-    // }
+    public fun borrow_mut<K: copy + drop + store, V: key + store>(bag: &mut ObjectBag, k: K): &mut V {
+        ofield::borrow_mut(&mut bag.id, k)
+    }
 
     /// Mutably borrows the key-value pair in the bag `bag: &mut ObjectBag` and returns the value.
     /// Aborts with `sui::dynamic_field::EFieldDoesNotExist` if the bag does not have an entry with
@@ -174,7 +176,7 @@ module sui_gives::object_bag {
         k: u64, 
         ctx: &TxContext
     ): V {
-        assert!(is_not_coin<V>(), ECantUseCoinAtThisFunction);
+        assert!(is_not_coin<V>(), ECanNotUseCoinAtThisFunction);
         let bag_id = object::id(bag);
         let object = remove<V>(bag, k);
         event::emit(
