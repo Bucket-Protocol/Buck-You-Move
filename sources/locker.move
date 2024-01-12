@@ -24,7 +24,7 @@ module sui_gives::locker {
         lockerContents_id: ID,
         creator: address,
         unlocker: Option<address>,
-        tx_sender: address,
+        sender: address,
     }
 
     struct LockerContentsDeleted has copy, drop {
@@ -32,7 +32,7 @@ module sui_gives::locker {
         lockerContents_id: ID,
         creator: address,
         unlocker: Option<address>,
-        tx_sender: address,
+        sender: address,
     }
 
     struct LockerContentsUnlocked has copy, drop {
@@ -41,7 +41,7 @@ module sui_gives::locker {
         lockerContents_id: ID,
         creator: address,
         unlocker: Option<address>,
-        tx_sender: address,
+        sender: address,
     }
 
     struct AddCoin has copy, drop {
@@ -49,6 +49,8 @@ module sui_gives::locker {
         lockerContents_id: ID,
         coin_type: ASCIIString,
         balance: u64,
+        creator: address,
+        unlocker: Option<address>,
         sender: address,
     }
 
@@ -56,6 +58,8 @@ module sui_gives::locker {
         key_hash: vector<u8>,
         lockerContents_id: ID,
         object_type: ASCIIString,
+        creator: address,
+        unlocker: Option<address>,
         sender: address,
     } 
 
@@ -64,6 +68,8 @@ module sui_gives::locker {
         lockerContents_id: ID,
         coin_type: ASCIIString,
         balance: u64,
+        creator: address,
+        unlocker: Option<address>,
         sender: address,
     }
 
@@ -71,6 +77,8 @@ module sui_gives::locker {
         key_hash: vector<u8>,
         lockerContents_id: ID,
         object_type: ASCIIString,
+        creator: address,
+        unlocker: Option<address>,
         sender: address,
     }
 
@@ -121,7 +129,7 @@ module sui_gives::locker {
             lockerContents_id,
             creator,
             unlocker,
-            tx_sender: tx_context::sender(ctx)
+            sender: tx_context::sender(ctx)
         });
 
         dof::add(&mut locker.id, key_hash, contents);
@@ -146,7 +154,7 @@ module sui_gives::locker {
             lockerContents_id,
             creator,
             unlocker,
-            tx_sender: tx_context::sender(ctx),
+            sender: tx_context::sender(ctx),
         });
         
         object_bag::destroy_empty(bag);
@@ -169,7 +177,7 @@ module sui_gives::locker {
             lockerContents_id: object::id(contents),
             creator: contents.creator,
             unlocker,
-            tx_sender: tx_context::sender(ctx),
+            sender: tx_context::sender(ctx),
         });
     }
 
@@ -201,6 +209,8 @@ module sui_gives::locker {
             lockerContents_id: object::id(contents),
             coin_type: type_name::into_string((type_name::get<T>())),
             balance: coin::value(&v),
+            creator: contents.creator,
+            unlocker: contents.unlocker,
             sender: tx_context::sender(ctx),
         });
 
@@ -225,6 +235,8 @@ module sui_gives::locker {
             key_hash,
             lockerContents_id: object::id(contents),
             object_type: type_name::into_string((type_name::get<V>())),
+            creator: contents.creator,
+            unlocker: contents.unlocker,
             sender: tx_context::sender(ctx),
         });
 
@@ -252,6 +264,8 @@ module sui_gives::locker {
             lockerContents_id: object::id(contents),
             coin_type: type_name::into_string((type_name::get<T>())),
             balance: coin::value(&v),
+            creator: contents.creator,
+            unlocker: contents.unlocker,
             sender: tx_context::sender(ctx),
         });
         v
@@ -277,6 +291,8 @@ module sui_gives::locker {
             key_hash,
             lockerContents_id: object::id(contents),
             object_type: type_name::into_string((type_name::get<V>())),
+            creator: contents.creator,
+            unlocker: contents.unlocker,
             sender: tx_context::sender(ctx),
         });
 
